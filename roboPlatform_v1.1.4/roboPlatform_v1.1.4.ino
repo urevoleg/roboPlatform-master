@@ -487,9 +487,11 @@ END:
       }
 
       if (line1MenuFlag) {
-        //line1Robot();
-        //line1RobotProp();
-        line1RobotProp1();
+        //line1RobotP();
+        //line1RobotCub();
+        //line1RobotProp1();
+        //line1RobotPD();
+        line1RobotPID();
       }
 
       if (line2MenuFlag) {
@@ -829,12 +831,12 @@ void line1RobotPID() {
   float sampleFiltered = centreFilter.filterAVG(sample);
   centreFilter.setLast(sampleFiltered);
 
-  float kp = 0.019;
-  float kd = 0.039;
-  float ki = 0.01;
+  float kp = 0.15;
+  float kd = 20.0;
+  float ki = 0.0;
 
   float integralMax = 10;
-  float integralMin = -1.0*integralMax;
+  float integralMin = -1.0 * integralMax;
 
   float err = sampleFiltered - lineSensorThresholdValue;             // вычисляем ошибку = разность между текущим значениемс датчика и требуемым
   float errErr = err - errOld;                                       // вычисляем изменение ошибки
@@ -851,7 +853,6 @@ void line1RobotPID() {
   integralOld = integral;                                            // обновляем предыдущее значение интегральной составляющей
 
   float upid = kp * err + kd * errErr + integral;                    // рассчитываем пропорционально-дифференциальный регулятор
-
   float leftM  = constrain(startValuePwmMotor + upid, 0, 100);
   float rightM  = constrain(startValuePwmMotor - upid, 0, 100);
 
@@ -859,8 +860,21 @@ void line1RobotPID() {
   digitalWrite(rightMotorDirPin, HIGH);
 
   int maxPwm = map(setMotorSpeed, 0, 100, 0, 255);                   // расчет максимального значения PWM для моторов в зависимости от выбранной мощности
-  analogWrite(leftMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
-  analogWrite(rightMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
+
+  switch (lineSensorNum) {
+    case 0:
+      analogWrite(leftMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
+      analogWrite(rightMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
+      break;
+    case 1:
+      analogWrite(leftMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
+      analogWrite(rightMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
+      break;
+    case 2:
+      analogWrite(leftMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
+      analogWrite(rightMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
+      break;
+  }
   delay(delayBetweenActionLineSensor);
 }
 
@@ -875,7 +889,7 @@ void line1RobotPD() {
   float errErr = err - errOld;                                       // вычисляем изменение ошибки
   errOld = err;                                                      // присвоили новое значение переменной предыдущей ошибки
   float kp = 0.019;
-  float kd = 0.039;
+  float kd = 10.0;
   float upd = kp * err + kd * errErr;                                // рассчитываем пропорционально-дифференциальный регулятор
 
   float leftM  = constrain(startValuePwmMotor + upd, 0, 100);
@@ -890,6 +904,10 @@ void line1RobotPD() {
   delay(delayBetweenActionLineSensor);
 }
 
+float sigmoid(float v) {
+  return 1 / (1 + exp(-0.02 * v));
+}
+
 // робот "Линия с 1 датчиком - Кубический регулятор"
 void line1RobotCub() {
   lastActionMillis = millis();
@@ -898,7 +916,7 @@ void line1RobotCub() {
   centreFilter.setLast(sampleFiltered);
 
   float err = sampleFiltered - lineSensorThresholdValue;             // вычисляем ошибку = разность между текущим значениемс датчика и требуемым
-  float upk = 0.00976 * err + 3.352e-7 * pow(err, 3);                // рассчитываем пропорционально-кубический коэфициент
+  float upk = 0.00025 * err + 3.75e-7 * pow(err, 3);            // рассчитываем пропорционально-кубический коэфициент
 
   float leftM  = constrain(startValuePwmMotor + upk, 0, 100);
   float rightM  = constrain(startValuePwmMotor - upk, 0, 100);
@@ -920,7 +938,6 @@ void line1RobotP() {
   centreFilter.setLast(sampleFiltered);
 
   float errKoefProp = koefProp * (sampleFiltered - lineSensorThresholdValue);
-
   float leftM  = constrain(startValuePwmMotor + errKoefProp, 0, 100);
   float rightM  = constrain(startValuePwmMotor - errKoefProp, 0, 100);
 
@@ -929,8 +946,8 @@ void line1RobotP() {
 
   // 102 - минимальное значение ШИМ сигнала, для того чтобы робот мог двигаться (получено экспериментально)
   int maxPwm = map(setMotorSpeed, 0, 100, 0, 255);                   // расчет максимального значения PWM для моторов в зависимости от выбранной мощности
-  analogWrite(leftMotorPwmPin, 0);
-  analogWrite(rightMotorPwmPin, 0);
+  analogWrite(leftMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
+  analogWrite(rightMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
   delay(delayBetweenActionLineSensor);
 }
 
@@ -953,24 +970,24 @@ void line1RobotProp1() {
     rightM = 100;
   }
   if (sampleFiltered > whiteValue and sampleFiltered <= minlineSensorThresholdValue) {
-    leftM = thresholdPwmValue * sampleFiltered / (minlineSensorThresholdValue - whiteValue) - (thresholdPwmValue * whiteValue) / (minlineSensorThresholdValue - whiteValue);
-    float b = 100 - ((100 - thresholdPwmValue) * whiteValue / (whiteValue - minlineSensorThresholdValue));
-    rightM = (100 - thresholdPwmValue) * sampleFiltered / (whiteValue - minlineSensorThresholdValue) + b;
+    leftM = thresholdPwmValue * sampleFiltered / (float(minlineSensorThresholdValue) - whiteValue) - (float(thresholdPwmValue) * whiteValue) / (minlineSensorThresholdValue - whiteValue);
+    float b = 100 - ((100 - thresholdPwmValue) * float(whiteValue) / (whiteValue - float(minlineSensorThresholdValue)));
+    rightM = (100 - thresholdPwmValue) * sampleFiltered / (whiteValue - float(minlineSensorThresholdValue)) + b;
   }
   if (sampleFiltered > minlineSensorThresholdValue and sampleFiltered <= lineSensorThresholdValue) {
     leftM = 100;
-    float b = 100 - (100 - thresholdPwmValue) * lineSensorThresholdValue / (lineSensorThresholdValue - minlineSensorThresholdValue);
-    rightM = (100 - thresholdPwmValue) * sampleFiltered / (lineSensorThresholdValue - minlineSensorThresholdValue) + b;
+    float b = 100 - (100 - thresholdPwmValue) * float(lineSensorThresholdValue) / (float(lineSensorThresholdValue) - minlineSensorThresholdValue);
+    rightM = (100 - thresholdPwmValue) * sampleFiltered / (lineSensorThresholdValue - float(minlineSensorThresholdValue)) + b;
   }
   if (sampleFiltered > lineSensorThresholdValue and sampleFiltered <= maxlineSensorThresholdValue) {
-    float b = thresholdPwmValue - (100 - thresholdPwmValue) * maxlineSensorThresholdValue / (lineSensorThresholdValue - maxlineSensorThresholdValue);
-    leftM = (100 - thresholdPwmValue) * sampleFiltered / (lineSensorThresholdValue - maxlineSensorThresholdValue) + b;
+    float b = float(thresholdPwmValue) - (100 - thresholdPwmValue) * float(maxlineSensorThresholdValue) / (float(lineSensorThresholdValue) - maxlineSensorThresholdValue);
+    leftM = (100 - thresholdPwmValue) * sampleFiltered / (float(lineSensorThresholdValue) - maxlineSensorThresholdValue) + b;
     rightM = 100;
   }
   if (sampleFiltered > maxlineSensorThresholdValue and sampleFiltered <= blackValue) {
-    float b = 100 - ((100 - thresholdPwmValue) * blackValue / (blackValue - maxlineSensorThresholdValue));
-    leftM = (100 - thresholdPwmValue) * sampleFiltered / (blackValue - maxlineSensorThresholdValue) + b;
-    rightM = thresholdPwmValue * sampleFiltered / (maxlineSensorThresholdValue - blackValue) - (thresholdPwmValue * blackValue) / (maxlineSensorThresholdValue - blackValue);
+    float b = 100 - ((100 - thresholdPwmValue) * float(blackValue) / (blackValue - float(maxlineSensorThresholdValue)));
+    leftM = (100 - thresholdPwmValue) * sampleFiltered / (blackValue - float(maxlineSensorThresholdValue)) + b;
+    rightM = thresholdPwmValue * sampleFiltered / (float(maxlineSensorThresholdValue) - blackValue) - (thresholdPwmValue * float(blackValue)) / (float(maxlineSensorThresholdValue) - blackValue);
   }
   if (sampleFiltered > blackValue) {
     leftM = 100;
