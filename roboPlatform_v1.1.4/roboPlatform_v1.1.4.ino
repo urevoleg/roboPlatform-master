@@ -31,7 +31,7 @@ byte addressLineSensorThresholdValue = 25; // занимает 4Б
 //--------------------- Simple lowpass ----------------------------------------------
 #include <MeanFilter.h>
 
-float k = 0.7;                       // коэффициент фильтрации 0-1 через 0.1
+float k = 0.7;                       // коэффициент фильтрации 0-1 через 0.01
 MeanFilter leftFilter(k);
 MeanFilter centreFilter(k);
 MeanFilter rightFilter(k);
@@ -69,35 +69,40 @@ byte s7[8] = {0b00000, 0b00000, 0b00100, 0b10101, 0b01110, 0b10101, 0b00100, 0b0
 byte s8[8] = {0b00000, 0b00000, 0b00000, 0b00100, 0b10101, 0b01110, 0b10101, 0b00100};
 // ------------------------------------- СИМВОЛЫ -------------------------------------
 // -------------------- LCD1602 ------------------------------------------------------
-byte butCentrePin = 4;                   // пин подключения центральной кнопки
-byte butLeftPin = 2;                     // пин подключения левой кнопки
-byte butRightPin = 3;                    // пин подключения правой кнопки
+byte butCentrePin = 4;                      // пин подключения центральной кнопки
+byte butLeftPin = 2;                        // пин подключения левой кнопки
+byte butRightPin = 3;                       // пин подключения правой кнопки
 /*
    из-за быстрого опроса кнопки не может нормально работать "Движение по линии"
 */
-unsigned long startButPressTimer = 0;    // стартовое значение таймера удержания
-unsigned long butPressTimer = 0;         // таймер удержания
-bool butIsShort = false;                 // флаг короткого нажатия кнопки
-bool butIsLong = false;                  // флаг длинного нажатия кнопки
-volatile bool butLeftIsPress = false;    // флаг нажатия левой кнопки
-volatile bool butRightIsPress = false;   // флаг нажатия правой кнопки
-unsigned int butCentreHoldTime = 1000;   // время удержания для длинного нажатия
-unsigned int shortButCount = 0;          // счетчик коротких нажатий
-unsigned int longButCount = 0;           // счетчик длинных нажатий
-bool butTimerIsCount = false;            // флаг счета таймера кнопки, если true - таймер считает
-bool lcdClear = false;                   // флаг очистки экрана, если true - надо очистить
-byte lcdBackLightPin = 5;                // пин управления подсветкой экрана
-byte lcdBrightness = 50;                 // яркость lcd дисплея в процентах 0-100%
-byte setDistance = 10;                   // переменная для настройки расстояния до препятствия
-byte setMotorSpeed = 50;                 // переменная для настройки мощности мотора 0-100% - регулируется из меню робота
-byte startValuePwmMotor = 50;            // начальная мощность моторов для П-регулятора
-float koefProp = 0.15;                    // коэффициент пропорциональности для П-регулятора
-float errOld = 0;                        // предыдущее значение ошибки для ПД-регулятора
-float integralOld = 0;                   // предыдущее значение интегральной составляющей для ПИД-регулятора
-byte delayBetweenActionLineSensor = 10;  // интервал измерения датчиков линии
-byte setForwardSec = 5;                  // переменная для настройка времени движения робота по прямой
-unsigned long startForwardRobot = 0;     // время старта робота "Движение по прямой"
-bool robotStartFlag = false;             // флаг запуска какого-либо робота
+unsigned long startButPressTimer = 0;       // стартовое значение таймера удержания
+unsigned long butPressTimer = 0;            // таймер удержания
+bool butIsShort = false;                    // флаг короткого нажатия кнопки
+bool butIsLong = false;                     // флаг длинного нажатия кнопки
+volatile bool butLeftIsPress = false;       // флаг нажатия левой кнопки
+volatile bool butRightIsPress = false;      // флаг нажатия правой кнопки
+unsigned int butCentreHoldTime = 1000;      // время удержания для длинного нажатия
+unsigned int shortButCount = 0;             // счетчик коротких нажатий
+unsigned int longButCount = 0;              // счетчик длинных нажатий
+bool butTimerIsCount = false;               // флаг счета таймера кнопки, если true - таймер считает
+bool lcdClear = false;                      // флаг очистки экрана, если true - надо очистить
+byte lcdBackLightPin = 5;                   // пин управления подсветкой экрана
+byte lcdBrightness = 50;                    // яркость lcd дисплея в процентах 0-100%
+byte setDistance = 10;                      // переменная для настройки расстояния до препятствия
+byte setMotorSpeed = 50;                    // переменная для настройки мощности мотора 0-100% - регулируется из меню робота
+byte startValuePwmMotor = 50;               // начальная мощность моторов для П-регулятора
+float koefProp = 0.15;                      // коэффициент пропорциональности для П-регулятора
+float koefDif = 9.1;                        // дифференциальный коэффициент ПИД-регулятора
+float koefInteg = 1.1;                      // интегральный коэффициент ПИД-регулятора
+float koef[3] = {koefProp, koefDif, koefInteg};
+String koefNames[3] = {"kp", "kd", "ki"};
+byte sizeOfKoef = sizeof(koef) / sizeof(float) - 1;
+float errOld = 0;                           // предыдущее значение ошибки для ПД-регулятора
+float integralOld = 0;                      // предыдущее значение интегральной составляющей для ПИД-регулятора
+byte delayBetweenActionLineSensor = 10;     // интервал измерения датчиков линии
+byte setForwardSec = 5;                     // переменная для настройка времени движения робота по прямой
+unsigned long startForwardRobot = 0;        // время старта робота "Движение по прямой"
+bool robotStartFlag = false;                // флаг запуска какого-либо робота
 
 /*
    Подкючение моторов через щилд на L293
@@ -149,6 +154,18 @@ byte thresholdPwmValue = 75;                                                    
 bool manualModeLineSensorMenuFlag = false;                                        // флаг ручной настройки порога белый/черный
 bool delayBetweenActionLineSensorFlag = false;                                    // флаг настройки интервала опроса датчиков
 byte lineSensorMask = 0b00000000;                                                 // маска значений датчиков линии
+// ------------------------- Подменю Calibration lineSensor --------------------------
+// ------------------------- Подменю Linetracer1 -------------------------------------
+String line1MenuItems[] = {"Set sensor", "Relay", "Cubic", "PID"};          // пункты меню Linetracer1
+byte line1MenuSize = sizeof(line1MenuItems) / sizeof(String) - 1;     // размер (кол-во строк) меню Linetracer1 (-1 так как счет с 0)
+// counter = 0 -> auto mode, counter = 1 -> (manual mode)
+int line1MenuCounter = 0;                                                   // счетчик позиций подменю "Linetracer1"
+bool setSensorLine1MenuFlag = false;
+bool relayLine1MenuFlag = false;
+bool cubicLine1MenuFlag = false;
+bool pidLine1MenuFlag = false;
+int pidLine1MenuCounter = 0;
+// ------------------------- Подменю Linetracer1 -------------------------------------
 
 // флаги для всех подпунктов меню корневого уровня
 bool leftTurnMenuFlag = false;
@@ -232,6 +249,7 @@ void loop() {
     //------------ КНОПКА ЛЕВО/МЕНЬШЕ/ВНИЗ -------------------------------
     if (butLeftIsPress) {
       lastActionMillis = millis();
+      lcdDrawFlag = true;
       butLeftIsPress = false;
       // действия в основном меню
       if (mainMenuFlag) {
@@ -241,6 +259,48 @@ void loop() {
         } else {
           mainMenuCounter--;
         }
+      }
+
+      // действия в меню "Linetracer1"
+      if (line1MenuFlag and !setSensorLine1MenuFlag and !relayLine1MenuFlag and !cubicLine1MenuFlag and !pidLine1MenuFlag) {
+        if (line1MenuCounter == 0) {
+          line1MenuCounter = line1MenuSize;
+        } else {
+          line1MenuCounter--;
+        }
+        lcdDrawFlag = true;
+      }
+
+      // действия в подменю "Linetracer 1: Set sensor"
+      if (setSensorLine1MenuFlag) {
+        lineSensorNum -= 1;
+        lineSensorNum = constrain(lineSensorNum, 0, 2);
+        lcdDrawFlag = true;
+      }
+
+      // действия в подменю "Linetracer 1: PID"
+      if (pidLine1MenuFlag) {
+        switch (pidLine1MenuCounter) {
+          case 0:
+            if (koefProp < 1)koefProp -= 0.01;
+            if (koefProp >= 1 and koefProp < 10)koefProp -= 0.1;
+            if (koefProp >= 10)koefProp -= 1;
+            break;
+          case 1:
+            if (koefDif < 1)koefDif -= 0.01;
+            if (koefDif >= 1 and koefDif < 10)koefDif -= 0.1;
+            if (koefDif >= 10)koefDif -= 1;
+            break;
+          case 2:
+            if (koefInteg < 1)koefInteg -= 0.01;
+            if (koefInteg >= 1 and koefInteg < 10)koefInteg -= 0.1;
+            if (koefInteg >= 10)koefInteg -= 1;
+            break;
+        }
+        koef[0] = koefProp;
+        koef[1] = koefDif;
+        koef[2] = koefInteg;
+        lcdDrawFlag = true;
       }
 
       // действия в меню "Calibration lineSensor"
@@ -295,20 +355,16 @@ void loop() {
       // действия в меню "Set k filter"
       if (setKFilterMenuFlag) {
         k -= 0.01;
+        k = constrain(k, 0.0, 1.0);
         lcdDrawFlag = true;
       }
 
-      // действия в меню "Linetracer 1"
-      if (line1MenuFlag) {
-        lineSensorNum -= 1;
-        lineSensorNum = constrain(lineSensorNum, 0, 2);
-        lcdDrawFlag = true;
-      }
     }
 
     //------------ КНОПКА ВПРАВО/БОЛЬШЕ/ВВЕРХ -------------------------------
     if (butRightIsPress) {
       lastActionMillis = millis();
+      lcdDrawFlag = true;
       butRightIsPress = false;
       // действия в основном меню
       if (mainMenuFlag) {
@@ -318,6 +374,48 @@ void loop() {
         } else {
           mainMenuCounter++;
         }
+      }
+
+      // действия в меню "Linetracer1"
+      if (line1MenuFlag and !setSensorLine1MenuFlag and !relayLine1MenuFlag and !cubicLine1MenuFlag and !pidLine1MenuFlag) {
+        if (line1MenuCounter == line1MenuSize) {
+          line1MenuCounter = 0;
+        } else {
+          line1MenuCounter++;
+        }
+        lcdDrawFlag = true;
+      }
+
+      // действия в подменю "Linetracer 1: Set sensor"
+      if (setSensorLine1MenuFlag) {
+        lineSensorNum += 1;
+        lineSensorNum = constrain(lineSensorNum, 0, 2);
+        lcdDrawFlag = true;
+      }
+
+      // действия в подменю "Linetracer 1: PID"
+      if (pidLine1MenuFlag) {
+        switch (pidLine1MenuCounter) {
+          case 0:
+            if (koefProp < 1)koefProp += 0.01;
+            if (koefProp >= 1 and koefProp < 10)koefProp += 0.1;
+            if (koefProp >= 10)koefProp += 1;
+            break;
+          case 1:
+            if (koefDif < 1)koefDif += 0.01;
+            if (koefDif >= 1 and koefDif < 10)koefDif += 0.1;
+            if (koefDif >= 10)koefDif += 1;
+            break;
+          case 2:
+            if (koefInteg < 1)koefInteg += 0.01;
+            if (koefInteg >= 1 and koefInteg < 10)koefInteg += 0.1;
+            if (koefInteg >= 10)koefInteg += 1;
+            break;
+        }
+        koef[0] = koefProp;
+        koef[1] = koefDif;
+        koef[2] = koefInteg;
+        lcdDrawFlag = true;
       }
 
       // действия в меню "Calibration lineSensor"
@@ -372,15 +470,10 @@ void loop() {
       // действия в меню "Set k filter"
       if (setKFilterMenuFlag) {
         k += 0.01;
+        k = constrain(k, 0.0, 1.0);
         lcdDrawFlag = true;
       }
 
-      // действия в меню "Linetracer 1"
-      if (line1MenuFlag) {
-        lineSensorNum += 1;
-        lineSensorNum = constrain(lineSensorNum, 0, 2);
-        lcdDrawFlag = true;
-      }
     }
 
     //------------------------ SHORT PRESS CENTRAL BUTTON -------------------------------------
@@ -392,6 +485,52 @@ void loop() {
         mainMenuFlag = false;
         lcdDrawFlag = true;
         goto END;
+      }
+
+      // действия в меню "Linetracer1"
+      if (line1MenuFlag and !setSensorLine1MenuFlag and !relayLine1MenuFlag and !cubicLine1MenuFlag and !pidLine1MenuFlag) {
+        switch (line1MenuCounter) {
+          case 0:
+            line1MenuFlag = false;
+            setSensorLine1MenuFlag = true;
+            relayLine1MenuFlag = false;
+            cubicLine1MenuFlag = false;
+            pidLine1MenuFlag = false;
+            break;
+          case 1:
+            line1MenuFlag = false;
+            setSensorLine1MenuFlag = false;
+            relayLine1MenuFlag = true;
+            cubicLine1MenuFlag = false;
+            pidLine1MenuFlag = false;
+            break;
+          case 2:
+            line1MenuFlag = false;
+            setSensorLine1MenuFlag = false;
+            relayLine1MenuFlag = false;
+            cubicLine1MenuFlag = true;
+            pidLine1MenuFlag = false;
+            break;
+          case 3:
+            line1MenuFlag = false;
+            setSensorLine1MenuFlag = false;
+            relayLine1MenuFlag = false;
+            cubicLine1MenuFlag = false;
+            pidLine1MenuFlag = true;
+            break;
+        }
+        lcdDrawFlag = true;
+        goto END;
+      }
+
+      // действия в подменю "Linetracer 1: PID"
+      if (pidLine1MenuFlag) {
+        pidLine1MenuCounter += 1;
+        if (pidLine1MenuCounter == 3) {
+          pidLine1MenuCounter = 0;
+        }
+        //pidLine1MenuCounter = constrain(pidLine1MenuCounter, 0, 2);
+        lcdDrawFlag = true;
       }
 
       // действия в меню "Calibration lineSensor"
@@ -448,7 +587,7 @@ void loop() {
         goto END;
       }
 
-      if (leftTurnMenuFlag or rightTurnMenuFlag or circleTurnMenuFlag or forwardMenuFlag or line1MenuFlag or line2MenuFlag or line3MenuFlag or wallMenuFlag or bluetoothMenuFlag) {
+      if (leftTurnMenuFlag or rightTurnMenuFlag or circleTurnMenuFlag or forwardMenuFlag or relayLine1MenuFlag or cubicLine1MenuFlag or line2MenuFlag or line3MenuFlag or wallMenuFlag or bluetoothMenuFlag) {
         lcd.setCursor(0, 1);
         lcd.print("    working     ");
         delay(2000);                    // задержка, чтобы отойти от робота
@@ -486,13 +625,17 @@ END:
         forwardRobot();
       }
 
-      if (line1MenuFlag) {
-        //line1RobotRelay();
-        //line1RobotCub();
-        line1RobotP();
-        //line1RobotPD();
-        //line1RobotPID();
+      if (relayLine1MenuFlag) {
+        line1RobotRelay();
       }
+
+      if (cubicLine1MenuFlag) {
+        line1RobotCub();
+      }
+
+      /*if (pidLine1MenuFlag) {
+        line1RobotPID();
+        }*/
 
       if (line2MenuFlag) {
         line2Robot();
@@ -514,6 +657,30 @@ END:
     // отрисовка меню "Linetracer 1"
     if (line1MenuFlag and lcdDrawFlag) {
       line1Menu();
+      lcdDrawFlag = false;
+    }
+
+    // отрисовка меню "Linetracer 1: Set sensor"
+    if (setSensorLine1MenuFlag and lcdDrawFlag) {
+      setSensorLine1Menu();
+      lcdDrawFlag = false;
+    }
+
+    // отрисовка меню "Linetracer 1: Relay"
+    if (relayLine1MenuFlag and lcdDrawFlag) {
+      relayLine1Menu();
+      lcdDrawFlag = false;
+    }
+
+    // отрисовка меню "Linetracer 1: Cubic"
+    if (cubicLine1MenuFlag and lcdDrawFlag) {
+      cubicLine1Menu();
+      lcdDrawFlag = false;
+    }
+
+    // отрисовка меню "Linetracer 1: PID"
+    if (pidLine1MenuFlag and lcdDrawFlag) {
+      pidLine1Menu();
       lcdDrawFlag = false;
     }
 
@@ -576,7 +743,9 @@ END:
       rightTurnMenuFlag = false;
       circleTurnMenuFlag = false;
       forwardMenuFlag = false;
-      line1MenuFlag = false;
+      if (line1MenuFlag) {
+        line1MenuFlag = false;
+      }
       line2MenuFlag = false;
       line3MenuFlag = false;
       wallMenuFlag = false;
@@ -588,6 +757,14 @@ END:
       setKFilterMenuFlag = false;
       manualModeLineSensorMenuFlag = false;
       delayBetweenActionLineSensorFlag = false;
+      if ((setSensorLine1MenuFlag or relayLine1MenuFlag or cubicLine1MenuFlag or pidLine1MenuFlag) and !line1MenuFlag) {
+        line1MenuFlag = true;
+        setSensorLine1MenuFlag = false;
+        relayLine1MenuFlag = false;
+        cubicLine1MenuFlag = false;
+        pidLine1MenuFlag = false;
+        mainMenuFlag = false;
+      }
       analogWrite(leftMotorPwmPin, 0);
       analogWrite(rightMotorPwmPin, 0);
     }
@@ -611,6 +788,7 @@ void butCentreRead() {
     if (butPressTimer < 500) {
       butIsShort = true;
       butIsLong = false;
+      shortButCount += 1;
     }
     if (butPressTimer > butCentreHoldTime) {
       butIsShort = false;
@@ -828,12 +1006,17 @@ void forwardRobot() {
 void line1RobotPID() {
   lastActionMillis = millis();
   int sample = analogRead(lineSensorNum);
-  float sampleFiltered = centreFilter.filterAVG(sample);
-  centreFilter.setLast(sampleFiltered);
+  float sampleFiltered = 0;
+  if (k == 0.0) {
+    sampleFiltered = sample;
+  } else {
+    sampleFiltered = centreFilter.filterAVG(sample);
+    centreFilter.setLast(sampleFiltered);
+  }
 
-  float kp = 0.15;
-  float kd = 20.0;
-  float ki = 0.0;
+  float kp = koefProp;                                               // пропорциональный коэффициент равен рассчитанному на этапа автокалибровки датчиков
+  float kd = koefDif;
+  float ki = koefInteg;
 
   float integralMax = 10;
   float integralMin = -1.0 * integralMax;
@@ -878,42 +1061,17 @@ void line1RobotPID() {
   delay(delayBetweenActionLineSensor);
 }
 
-// робот "Линия с 1 датчиком - ПД-регулятор"
-void line1RobotPD() {
-  lastActionMillis = millis();
-  int sample = analogRead(lineSensorNum);
-  float sampleFiltered = centreFilter.filterAVG(sample);
-  centreFilter.setLast(sampleFiltered);
-
-  float err = sampleFiltered - lineSensorThresholdValue;             // вычисляем ошибку = разность между текущим значениемс датчика и требуемым
-  float errErr = err - errOld;                                       // вычисляем изменение ошибки
-  errOld = err;                                                      // присвоили новое значение переменной предыдущей ошибки
-  float kp = koefProp;
-  float kd = 25.0;
-  float upd = kp * err + kd * errErr;                                // рассчитываем пропорционально-дифференциальный регулятор
-
-  float leftM  = constrain(startValuePwmMotor + upd, 0, 100);
-  float rightM  = constrain(startValuePwmMotor - upd, 0, 100);
-
-  digitalWrite(leftMotorDirPin, HIGH);
-  digitalWrite(rightMotorDirPin, HIGH);
-
-  int maxPwm = map(setMotorSpeed, 0, 100, 0, 255);                   // расчет максимального значения PWM для моторов в зависимости от выбранной мощности
-  analogWrite(leftMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
-  analogWrite(rightMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
-  delay(delayBetweenActionLineSensor);
-}
-
-float sigmoid(float v) {
-  return 1 / (1 + exp(-0.02 * v));
-}
-
 // робот "Линия с 1 датчиком - Кубический регулятор"
 void line1RobotCub() {
   lastActionMillis = millis();
   int sample = analogRead(lineSensorNum);
-  float sampleFiltered = centreFilter.filterAVG(sample);
-  centreFilter.setLast(sampleFiltered);
+  float sampleFiltered = 0.0;
+  if (k == 0.0) {
+    sampleFiltered = sample;
+  } else {
+    sampleFiltered = centreFilter.filterAVG(sample);
+    centreFilter.setLast(sampleFiltered);
+  }
 
   float err = sampleFiltered - lineSensorThresholdValue;      // вычисляем ошибку = разность между текущим значениемс датчика и требуемым
   float upk = koefProp * err + 1.5e-7 * pow(err, 3);            // рассчитываем пропорционально-кубический коэфициент
@@ -930,33 +1088,17 @@ void line1RobotCub() {
   delay(delayBetweenActionLineSensor);
 }
 
-// робот "Линия с 1 датчиком - П-регулятор"
-void line1RobotP() {
-  lastActionMillis = millis();
-  int sample = analogRead(lineSensorNum);
-  float sampleFiltered = centreFilter.filterAVG(sample);
-  centreFilter.setLast(sampleFiltered);
-
-  float errKoefProp = koefProp * (sampleFiltered - lineSensorThresholdValue);
-  float leftM  = constrain(startValuePwmMotor + errKoefProp, 0, 100);
-  float rightM  = constrain(startValuePwmMotor - errKoefProp, 0, 100);
-
-  digitalWrite(leftMotorDirPin, HIGH);
-  digitalWrite(rightMotorDirPin, HIGH);
-
-  // 102 - минимальное значение ШИМ сигнала, для того чтобы робот мог двигаться (получено экспериментально)
-  int maxPwm = map(setMotorSpeed, 0, 100, 0, 255);                   // расчет максимального значения PWM для моторов в зависимости от выбранной мощности
-  analogWrite(leftMotorPwmPin, map(leftM, 0, 100, 0, maxPwm));
-  analogWrite(rightMotorPwmPin, map(rightM, 0, 100, 0, maxPwm));
-  delay(delayBetweenActionLineSensor);
-}
-
 // робот "Линия с 1 датчиком - Релейный регулятор"
 void line1RobotRelay() {
   lastActionMillis = millis();
   int sample = analogRead(lineSensorNum);
-  int sampleFiltered = centreFilter.filterAVG(sample);
-  centreFilter.setLast(sampleFiltered);
+  int sampleFiltered = 0;
+  if (k == 0.0) {
+    sampleFiltered = sample;
+  } else {
+    sampleFiltered = centreFilter.filterAVG(sample);
+    centreFilter.setLast(sampleFiltered);
+  }
 
   if (sampleFiltered < lineSensorThresholdValue) {
     switch (lineSensorNum) {
@@ -1137,10 +1279,20 @@ void forwardMenu() {
 }
 
 // функция "Linetracer 1"
+// выбор датчика и выбор алгоритма движения 1.Релейный 2.Кубический 3.ПИД с настройкой коэффициентов
 void line1Menu() {
   lcd.clear();
   lcd.setCursor(1, 0);
   lcd.print(mainMenuItems[mainMenuCounter]);
+  lcd.setCursor(1, 1);
+  lcd.print(line1MenuItems[line1MenuCounter]);
+}
+
+// функция отрисовки подменю "Linetracer1: Set sensor"
+void setSensorLine1Menu() {
+  lcd.clear();
+  lcd.setCursor(1, 0);
+  lcd.print(line1MenuItems[line1MenuCounter]);
   switch (lineSensorNum) {
     case 0:
       lcd.setCursor(1, 1);
@@ -1153,6 +1305,49 @@ void line1Menu() {
       break;
   }
   lcd.printByte(sensorLabels[lineSensorNum]);
+}
+
+// функция отрисовки подменю "Linetracer1: Relay"
+void relayLine1Menu() {
+  lcd.clear();
+  lcd.setCursor(1, 0);
+  lcd.print(line1MenuItems[line1MenuCounter]);
+}
+
+// функция отрисовки подменю "Linetracer1: Cubic"
+void cubicLine1Menu() {
+  lcd.clear();
+  lcd.setCursor(1, 0);
+  lcd.print(line1MenuItems[line1MenuCounter]);
+}
+
+// функция отрисовки подменю "Linetracer1: PID"
+void pidLine1Menu() {
+  lcd.clear();
+  lcd.setCursor(1, 0);
+  lcd.print(line1MenuItems[line1MenuCounter]);
+  for (int i = 0; i <= sizeOfKoef; i++) {
+    lcd.setCursor(4 * i + 5, 0);
+    lcd.print(koefNames[i]);
+  }
+
+  for (int i = 0; i <= sizeOfKoef; i++) {
+    if (koef[i] < 1) {
+      lcd.setCursor(4 * i + 3, 1);
+      lcd.print(koef[i], 2);
+    }
+    if (koef[i] >= 1 and koef[i] < 10) {
+      lcd.setCursor(4 * i + 4, 1);
+      lcd.print(koef[i], 1);
+    }
+    if (koef[i] >= 10) {
+      lcd.setCursor(4 * i + 5, 1);
+      lcd.print(koef[i], 0);
+    }
+  }
+
+  lcd.setCursor(pidLine1MenuCounter * 4 + 3, 1);
+  lcd.printByte(0b01111110);                        // отрисовываем стрелку указатель на текущий элемент
 }
 
 // функция отрисовки "Настройка порога белый/черный для датчиков линии"
@@ -1219,7 +1414,11 @@ void kFilterMenu() {
   lcd.setCursor(5, 1);
   lcd.print("k:");
   lcd.setCursor(7, 1);
-  lcd.print(k);
+  if (k == 0.0) {
+    lcd.print("off ");
+  } else {
+    lcd.print(k);
+  }
 }
 
 // функция отрисовки "Сохранения настроек"
